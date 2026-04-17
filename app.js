@@ -1148,6 +1148,7 @@ function applyProfile(idx){
     ST.user_config.category='lp21';
   }
   if(document.getElementById('app').style.display==='flex') { updateSidebarByProfile(); hsUpdateSidebarVisibility(); }
+  sbSyncVocabProgress(ST.lang||'en'); // → Supabase Vocab Sync
 }
 
 function saveProfile(){
@@ -4609,6 +4610,7 @@ function saveVKProgress(wordIdx,learned){
   if(!prog[vkUnit])prog[vkUnit]={};
   prog[vkUnit][globalIdx]=learned;
   localStorage.setItem(key,JSON.stringify(prog));
+  sbSaveVocabWord(lang, vkUnit, globalIdx, learned); // → Supabase
 }
 function buildVKUnitGrid(){
   const lang=ST.lang||'en';const db=VKDB[lang];
@@ -8510,4 +8512,67 @@ async function sbSyncProfiles() {
     }
   });
   localStorage.setItem('edu_profiles', JSON.stringify(ST.profiles));
+}
+
+// ═══════════════════════════════════════════
+// SUPABASE — VOCAB PROGRESS HELPERS
+// ═══════════════════════════════════════════
+
+async function sbSaveVocabWord(lang, unitIdx, wordIdx, known) {
+  if (!sb) return;
+  const p = ST.profiles[ST.activeProfile]; if (!p) return;
+  try {
+    const { error } = await sb
+      .from('vocab_progress')
+      .upsert({
+        profile_id:  p.id,
+        language:    lang,
+        word:        `${unitIdx}:${wordIdx}`,  // key: "unit:wordIdx"
+        known:       known,
+        updated_at:  new Date().toISOString()
+      }, { onConflict: 'profile_id,language,word' });
+    if (error) console.warn('Supabase Vocab save:', error.message);
+  } catch(e) { console.warn('Supabase offline:', e.message); }
+}
+
+async function sbLoadVocabProgress(lang) {
+  if (!sb) return null;
+  const p = ST.profiles[ST.activeProfile]; if (!p) return null;
+  try {
+    const { data, error } = await sb
+      .from('vocab_progress')
+      .select('word,known')
+      .eq('profile_id', p.id)
+      .eq('language', lang);
+    if (error) { console.warn('Supabase Vocab load:', error.message); return null; }
+    return data;
+  } catch(e) { console.warn('Supabase offline:', e.message); return null; }
+}
+
+async function sbSyncVocabProgress(lang) {
+  const remote = await sbLoadVocabProgress(lang);
+  if (!remote || remote.length === 0) {
+    // Nichts remote — lokalen Stand hochladen
+    const key = 'vk_prog_' + lang;
+    const prog = JSON.parse(localStorage.getItem(key) || '{}');
+    for (const [unitIdx, unitProg] of Object.entries(prog)) {
+      for (const [wordIdx, known] of Object.entries(unitProg)) {
+        if (known) await sbSaveVocabWord(lang, unitIdx, wordIdx, true);
+      }
+    }
+    return;
+  }
+  // Remote in localStorage mergen
+  const key = 'vk_prog_' + lang;
+  const prog = JSON.parse(localStorage.getItem(key) || '{}');
+  let changed = false;
+  for (const row of remote) {
+    const [unitIdx, wordIdx] = row.word.split(':');
+    if (!prog[unitIdx]) prog[unitIdx] = {};
+    if (prog[unitIdx][wordIdx] !== row.known) {
+      prog[unitIdx][wordIdx] = row.known;
+      changed = true;
+    }
+  }
+  if (changed) localStorage.setItem(key, JSON.stringify(prog));
 }
