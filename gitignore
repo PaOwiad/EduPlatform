@@ -1,0 +1,10 @@
+# Sensible Daten — NIE ins Git
+.env
+secrets.js
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
