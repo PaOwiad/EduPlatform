@@ -1610,7 +1610,7 @@ let zlModus='', zlCurrent=null, zlScore=0, zlStreak=0, zlCorrect=0;
 
 // ── Buchstaben-Fortschritt ──
 function btGetProgress() { return JSON.parse(localStorage.getItem(BT_KEY)||'{}'); }
-function btSaveProgress(p) { localStorage.setItem(BT_KEY, JSON.stringify(p)); }
+function btSaveProgress(p) { localStorage.setItem(BT_KEY, JSON.stringify(p)); sbSaveProgress('z1_buchstaben', p); }
 function btMarkCorrect(letter) {
   const p = btGetProgress();
   p[letter] = Math.min(3, (p[letter]||0)+1);
@@ -1873,6 +1873,7 @@ function swResult(known) {
   if(known) { p[key]= Math.min(3,(p[key]||0)+1); swStreak++; addXP(3,'l','learn'); }
   else { swStreak=0; }
   localStorage.setItem(SW_KEY, JSON.stringify(p));
+  sbSaveProgress('z1_sichtwort', p); // → Supabase
   swUpdateStats();
   swCurrentIdx = (swCurrentIdx+1) % swCurrentList.length;
   setTimeout(swNextCard, 400);
@@ -1906,7 +1907,7 @@ const ZL_NAMES = ['null','eins','zwei','drei','vier','fünf','sechs','sieben','a
 const ZL_EMOJI_OBJ = ['⭐','🍎','🐶','🏠','🌸','🎈','🦋','🍓','🐠','🌙','🎃'];
 
 function zlGetProgress() { return JSON.parse(localStorage.getItem(ZL_KEY)||'{}'); }
-function zlSaveProgress(p) { localStorage.setItem(ZL_KEY,JSON.stringify(p)); }
+function zlSaveProgress(p) { localStorage.setItem(ZL_KEY,JSON.stringify(p)); sbSaveProgress('z1_zahlen', p); }
 function zlMarkCorrect(n) {
   const p=zlGetProgress(); p[n]=Math.min(3,(p[n]||0)+1);
   zlSaveProgress(p); zlRenderMap();
@@ -8612,9 +8613,9 @@ async function sbLoadProgress(key) {
       .eq('profile_id', p.id)
       .eq('module', 'general')
       .eq('key', key)
-      .single();
+      .limit(1);
     if (error) { console.warn('Supabase Progress load:', error.message); return null; }
-    return data?.value ?? null;
+    return data?.[0]?.value ?? null;
   } catch(e) { console.warn('Supabase offline:', e.message); return null; }
 }
 
@@ -8635,4 +8636,7 @@ async function sbSyncAllProgress() {
   await sbSyncProgress('edu_path');
   await sbSyncProgress('edu_ek_results');
   await sbSyncProgress('hs_tageslog');
+  await sbSyncProgress('z1_buchstaben');
+  await sbSyncProgress('z1_sichtwort');
+  await sbSyncProgress('z1_zahlen');
 }
