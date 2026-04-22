@@ -718,8 +718,8 @@ Respond ONLY valid JSON:
       let html = `<div class="card"><div class="ctitle">${d.title} <span class="tag tag-ai">KI + TTS</span></div>
         <div style="padding:12px 14px;background:var(--bg3);border-radius:var(--r);font-size:14px;line-height:1.9;margin-bottom:1rem;border-left:3px solid var(--purple);">
           <div style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;margin-bottom:8px;">📢 Hörtext</div>
-          ${(d.script||'').replace(/\n/g,'<br>')}
-          <button class="btn" style="margin-top:.75rem;padding:5px 14px;font-size:12px;" onclick="speak(this.parentElement.innerText,'${lang}')">🔊 Vorlesen</button>
+          <span id="hoer-script">${(d.script||'').replace(/\n/g,'<br>')}</span>
+          <button class="btn" style="margin-top:.75rem;padding:5px 14px;font-size:12px;" onclick="speak(document.getElementById('hoer-script').innerText,'${lang}')">🔊 Vorlesen</button>
         </div>`;
       if (d.key_expressions?.length) html += `<div style="margin-bottom:1rem;padding:8px 12px;background:rgba(168,85,247,.06);border:1px solid rgba(168,85,247,.2);border-radius:var(--r);"><div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:5px;">🗣️ Schlüsselausdrücke</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${d.key_expressions.map(ex=>`<span style="padding:3px 10px;background:var(--bg2);border-radius:5px;font-size:12px;"><span style="color:var(--purple);">${ex.expr}</span> → ${ex.meaning}</span>`).join('')}</div></div>`;
       if (d.questions?.length) {
