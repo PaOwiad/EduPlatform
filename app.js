@@ -1173,6 +1173,7 @@ function launchApp(){
   renderSjArchiv();
   hsUpdateSidebarVisibility();
   vokiUpdateVKDB(); // Sprint 12: eigene Sets in VKDB laden
+  sbSyncAllProgress(); // → Supabase allgemeiner Fortschritt
 }
 
 function updateTop(){
@@ -2413,6 +2414,7 @@ function hsMarkTodayDone(fachId){
   if(!log.some(e=>e.datum===today&&e.fach===fachId)){
     log.unshift({datum:today,fach:fachId,abgeschlossen:true,dauer:Math.round(hsTimerSeconds/60)});
     localStorage.setItem(HS_KEY_LOG,JSON.stringify(log));
+    sbSaveProgress('hs_tageslog', log); // → Supabase
   }
 }
 
@@ -2494,6 +2496,7 @@ function hsSpeichereReflektion(){
   if(log.length>100)log.pop();
   localStorage.setItem(HS_KEY_LOG,JSON.stringify(log));
   // Z1: zurück zur Morgenrunde
+  sbSaveProgress('hs_tageslog', log); // → Supabase
   if(zyklus==='z1'){
     document.getElementById('hs-z1-reflexion').style.display='none';
     document.getElementById('hs-z1-morgen').style.display='';
@@ -6244,6 +6247,7 @@ function saveEKResult(fach, zyklus, fachLbl, erreicht, total, note){
   // Max 50 Einträge behalten
   if(all.length > 50) all.splice(0, all.length-50);
   localStorage.setItem(key, JSON.stringify(all));
+  sbSaveProgress('edu_ek_results', all); // → Supabase
   toast('✅ Ergebnis gespeichert!');
   renderEKOverview('hj1');
   addXP(10,'r','exam');
@@ -8575,4 +8579,60 @@ async function sbSyncVocabProgress(lang) {
     }
   }
   if (changed) localStorage.setItem(key, JSON.stringify(prog));
+}
+
+// ═══════════════════════════════════════════
+// SUPABASE — ALLGEMEINER FORTSCHRITT HELPERS
+// ═══════════════════════════════════════════
+
+async function sbSaveProgress(key, value) {
+  if (!sb) return;
+  const p = ST.profiles[ST.activeProfile]; if (!p) return;
+  try {
+    const { error } = await sb
+      .from('progress')
+      .upsert({
+        profile_id:  p.id,
+        module:      'general',
+        key:         key,
+        value:       value,
+        updated_at:  new Date().toISOString()
+      }, { onConflict: 'profile_id,module,key' });
+    if (error) console.warn('Supabase Progress save:', error.message);
+  } catch(e) { console.warn('Supabase offline:', e.message); }
+}
+
+async function sbLoadProgress(key) {
+  if (!sb) return null;
+  const p = ST.profiles[ST.activeProfile]; if (!p) return null;
+  try {
+    const { data, error } = await sb
+      .from('progress')
+      .select('value')
+      .eq('profile_id', p.id)
+      .eq('module', 'general')
+      .eq('key', key)
+      .single();
+    if (error) { console.warn('Supabase Progress load:', error.message); return null; }
+    return data?.value ?? null;
+  } catch(e) { console.warn('Supabase offline:', e.message); return null; }
+}
+
+async function sbSyncProgress(key) {
+  // localStorage hat Vorrang — remote wird als Backup genutzt
+  const local = localStorage.getItem(key);
+  if (local) {
+    // Lokal vorhanden → zu Supabase hochladen
+    await sbSaveProgress(key, JSON.parse(local));
+  } else {
+    // Lokal leer → von Supabase laden
+    const remote = await sbLoadProgress(key);
+    if (remote) localStorage.setItem(key, JSON.stringify(remote));
+  }
+}
+
+async function sbSyncAllProgress() {
+  await sbSyncProgress('edu_path');
+  await sbSyncProgress('edu_ek_results');
+  await sbSyncProgress('hs_tageslog');
 }
